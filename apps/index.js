@@ -34,7 +34,8 @@ import {
 	gclog,
 	mytoken, gcPaylog,
 	bindStoken, bindLogin_ticket,
-	cloudToken
+	cloudToken,
+	confirmDeleteInvalid
 } from "./user.js"
 import {
 	rule as signRule,
@@ -43,7 +44,13 @@ import {
 	cloudSign,
 	seach,
 	cookiesDocHelp,
-	signTask
+	signTask,
+	queryProgress,
+	forcePauseTask,
+	stopTask,
+	resumeTask,
+	signList,
+	xiaoyaoSign
 } from "./sign.js"
 import {
 	rule as topupLoginRule,
@@ -65,6 +72,7 @@ export {
 	cloudToken,
 	Note_appoint,
 	signTask,
+	queryProgress,
 	pokeNote,
 	genShenMap,
 	cookiesDocHelp,
@@ -75,6 +83,12 @@ export {
 	noteTask,
 	AtlasAlias,srAtlasAlias,
 	Note,
+	confirmDeleteInvalid,
+	forcePauseTask,
+	stopTask,
+	resumeTask,
+	signList,
+	xiaoyaoSign,
 };
 import gsCfg from '../model/gsCfg.js';
 const _path = process.cwd();
@@ -117,6 +131,18 @@ let rule = {
 		reg: '#?(动态|幻影)',
 		describe: "动态",
 	},
+	queryProgress: {
+		reg: "^#查询进度$",
+		describe: "查询当前签到任务进度",
+	},
+	signList: {
+		reg: "^#签到列表$",
+		describe: "查看所有签到用户列表（合并转发）",
+	},
+	xiaoyaoSign: {
+		reg: "^#逍遥签到$",
+		describe: "管理员一键开启所有签到任务",
+	},
 	...userRule,
 	...signRule,
 	...adminRule,
@@ -134,18 +160,27 @@ task();
 async function task() {
 	if (typeof test != "undefined") return;
 	let set = gsCfg.getfileYaml(`${_path}/plugins/xiaoyao-cvs-plugin/config/`, "config")
-	schedule.scheduleJob(set.mysBbsTime, function () {
+	schedule.scheduleJob(set.mysBbsTime, async function () {
 		if (set.ismysSign) {
+			// 定时任务开始时通知主人
+			const utils = (await import('../model/mys/utils.js')).default;
+			await utils.sendToMaster('【定时任务】米币全部签到任务开始');
 			signTask('bbs')
 		}
 	});
-	schedule.scheduleJob(set.allSignTime, function () {
+	schedule.scheduleJob(set.allSignTime, async function () {
 		if (set.isSign) {
+			// 定时任务开始时通知主人
+			const utils = (await import('../model/mys/utils.js')).default;
+			await utils.sendToMaster('【定时任务】米游全部签到任务开始');
 			signTask('mys')
 		}
 	});
-	schedule.scheduleJob(set.cloudSignTime, function () {
+	schedule.scheduleJob(set.cloudSignTime, async function () {
 		if (set.isCloudSign) {
+			// 定时任务开始时通知主人
+			const utils = (await import('../model/mys/utils.js')).default;
+			await utils.sendToMaster('【定时任务】云原神全部签到任务开始');
 			signTask('cloud')
 		}
 	});

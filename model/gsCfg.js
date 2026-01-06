@@ -35,12 +35,17 @@ class GsCfg {
 	  }
 	}
 	async getMasterQQ(){
+		// 直接从系统配置中读取主人QQ
 		let qq;
-		if(isV3){
-			let config=(await import(`file://${_path}/lib/config/config.js`)).default
-			qq=config.masterQQ[0]
-		}else{
-			qq=BotConfig.masterQQ[0]
+		try {
+			if(isV3){
+				let config=(await import(`file://${_path}/lib/config/config.js`)).default
+				qq=config.masterQQ[0]
+			}else{
+				qq=BotConfig.masterQQ[0]
+			}
+		} catch (error) {
+			Bot.logger.error(`读取系统配置中的主人QQ失败: ${error}`);
 		}
 		return qq
 	}

@@ -1,5 +1,8 @@
 import _ from 'lodash';
 import moment from 'moment';
+import {
+	isV3
+			} from '../../components/Changelog.js';
 export async function sleepAsync(sleepms) {
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
@@ -48,9 +51,104 @@ export async function relpyPrivate(userId, msg) {
 	let friend = Bot.fl.get(userId)
 	if (friend) {
 		Bot.logger.mark(`发送好友消息[${friend.nickname}](${userId})`)
-		return await Bot.pickUser(userId).sendMsg(msg).catch((err) => {
-			Bot.logger.mark(err)
-		})
+		try {
+			const result = await Bot.pickUser(userId).sendMsg(msg);
+			Bot.logger.mark(`好友消息发送成功: ${userId}`);
+			return result;
+		} catch (err) {
+			Bot.logger.error(`发送好友消息失败[${userId}]: ${err}`);
+			throw err; // 抛出错误，让调用者知道发送失败
+		}
+	} else {
+		Bot.logger.warn(`无法发送好友消息: QQ${userId} 不是好友`);
+		return null;
+	}
+}
+
+/**
+ * 发送消息给主人
+ * @param msg 消息内容
+ * @param botUin 机器人账号，默认使用 Bot.uin
+ * @param sleep 发送间隔（毫秒），默认5000
+ */
+export async function sendToMaster(msg, botUin = Bot.uin, sleep = 5000) {
+	try {
+		// 优先使用 Bot.sendMasterMsg
+		if (typeof Bot.sendMasterMsg === 'function') {
+			return await Bot.sendMasterMsg(msg, botUin, sleep);
+		}
+		
+		// 直接从系统配置获取主人QQ列表（完整数组）
+		let masterQQ = [];
+		try {
+			// 直接从系统配置读取完整的 masterQQ 数组
+			if (typeof isV3 !== 'undefined' && isV3) {
+				const config = (await import(`file://${process.cwd()}/lib/config/config.js`)).default;
+				masterQQ = config.masterQQ || [];
+			} else if (typeof BotConfig !== 'undefined') {
+				masterQQ = BotConfig.masterQQ || [];
+			}
+			
+			// 如果还是空，尝试通过 gsCfg 获取（兼容旧逻辑）
+			if (!masterQQ || masterQQ.length === 0) {
+				const gsCfg = (await import('../gsCfg.js')).default;
+				const masterQQValue = await gsCfg.getMasterQQ();
+				if (masterQQValue) {
+					masterQQ = [masterQQValue];
+				}
+			}
+		} catch (error) {
+			Bot.logger.error(`获取主人QQ失败: ${error.message}`);
+		}
+		
+		if (!masterQQ || masterQQ.length === 0) {
+			Bot.logger.warn(`无法发送消息给主人：主人QQ未配置`);
+			return false;
+		}
+		
+		// 过滤掉无效的QQ号（stdin等）
+		masterQQ = masterQQ.filter(qq => {
+			const qqStr = String(qq).trim();
+			return qqStr && qqStr !== '' && qqStr !== 'stdin';
+		});
+		
+		if (masterQQ.length === 0) {
+			Bot.logger.warn(`无法发送消息给主人：所有主人QQ都无效`);
+			return false;
+		}
+		
+		// 检查是否为stdin适配器
+		if (typeof Bot !== 'undefined' && Bot.uin) {
+			let uinStr = String(Bot.uin);
+			if (uinStr === 'stdin' || uinStr.includes('stdin')) {
+				Bot.logger.warn(`无法发送消息给主人：当前为stdin适配器`);
+				return false;
+			}
+		}
+		
+		// 发送消息给所有主人（简化逻辑，直接发送给所有主人）
+		const common = (await import(`file://${process.cwd()}/lib/common/common.js`)).default;
+		
+		if (masterQQ.length === 1) {
+			// 只有一个主人，直接发送
+			return await common.relpyPrivate(masterQQ[0], msg, botUin);
+		} else {
+			// 多个主人，循环发送
+			for (const qq of masterQQ) {
+				try {
+					await common.relpyPrivate(qq, msg, botUin);
+					if (sleep > 0 && masterQQ.indexOf(qq) < masterQQ.length - 1) {
+						await common.sleep(sleep);
+					}
+				} catch (error) {
+					Bot.logger.error(`发送消息给主人失败[${qq}]: ${error.message || error}`);
+				}
+			}
+			return true;
+		}
+	} catch (error) {
+		Bot.logger.error(`发送消息给主人失败: ${error.message || error}`);
+		return false;
 	}
 }
 export async function replyMake(e, _msg, lenght) {
@@ -137,5 +235,6 @@ export default {
 	redisGet,
 	redisSet,recallMsg,
 	relpyPrivate,
-	getCookieMap
+	getCookieMap,
+	sendToMaster
 }

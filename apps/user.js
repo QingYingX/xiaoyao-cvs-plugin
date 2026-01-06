@@ -49,6 +49,10 @@ export const rule = {
 	updCookie: {
 		reg: "^#*(刷新|更新|获取)(ck|cookie)$",
 		describe: "刷新cookie"
+	},
+	confirmDeleteInvalid: {
+		reg: "^#确认删除失效账号$",
+		describe: "确认删除失效账号"
 	}
 }
 const _path = process.cwd();
@@ -314,6 +318,18 @@ export async function delSign(e) {
 	e.msg = e.msg.replace(/#|删除|我的/g, "");
 	let url = /sk|stoken/.test(e.msg) ? `${YamlDataUrl}` : `${yunpath}`;
 	await user.delSytk(url, e)
+	return true;
+}
+
+export async function confirmDeleteInvalid(e) {
+	if (!e.isMaster) {
+		e.reply(`只有主人才能命令我哦~
+    (*/ω＼*)`)
+		return true;
+	}
+	let user = new User(e);
+	let result = await user.confirmDeleteInvalidAccounts();
+	e.reply(result);
 	return true;
 }
 export async function updCookie(e) {
